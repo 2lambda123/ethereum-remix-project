@@ -1,9 +1,23 @@
-import { app, BrowserWindow, dialog, Menu, MenuItem, shell, utilityProcess } from 'electron';
+import { app, BrowserWindow, dialog, Menu, MenuItem, shell, utilityProcess, screen } from 'electron';
 import path from 'path';
 
 
 export let isPackaged = false;
 export const version = app.getVersion();
+
+const args = process.argv.slice(1)
+console.log("args", args)
+export const isE2ELocal = args.find(arg => arg.startsWith('--e2e-local'))
+export const isE2E = args.find(arg => arg.startsWith('--e2e'))
+
+if (isE2ELocal) {
+  console.log('e2e mode')
+}
+const cache_dir_arg = args.find(arg => arg.startsWith('--cache_dir='))
+export let cache_dir = ''
+if (cache_dir_arg) {
+  cache_dir = cache_dir_arg.split('=')[1]
+}
 
 if (
   process.mainModule &&
@@ -21,8 +35,9 @@ const windowSet = new Set<BrowserWindow>([]);
 export const createWindow = async (dir?: string): Promise<void> => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    height: 800,
-    width: 1024,
+    height: screen.getPrimaryDisplay().size.height * 0.8,
+    width: screen.getPrimaryDisplay().size.width * 0.8,
+    frame: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js')
     },
@@ -35,10 +50,9 @@ export const createWindow = async (dir?: string): Promise<void> => {
   const params = dir ? `?opendir=${encodeURIComponent(dir)}` : '';
   // and load the index.html of the app.
   mainWindow.loadURL(
-    process.env.NODE_ENV === 'production' || isPackaged ? `file://${__dirname}/remix-ide/index.html` + params :
+    (process.env.NODE_ENV === 'production' || isPackaged) && !isE2ELocal ? `file://${__dirname}/remix-ide/index.html` + params :
       'http://localhost:8080' + params)
 
-  mainWindow.maximize();
 
   if (dir) {
     mainWindow.setTitle(dir)
@@ -48,6 +62,9 @@ export const createWindow = async (dir?: string): Promise<void> => {
   mainWindow.on('close', (event) => {
     windowSet.delete(mainWindow)
   })
+
+  if(isE2E)
+    mainWindow.maximize()
 
   windowSet.add(mainWindow)
   //mainWindow.webContents.openDevTools();
@@ -102,6 +119,7 @@ import ViewMenu from './menus/view';
 import TerminalMenu from './menus/terminal';
 import HelpMenu from './menus/help';
 import { execCommand } from './menus/commands';
+import main from './menus/main';
 
 
 const commandKeys: Record<string, string> = {
@@ -118,8 +136,8 @@ const menu = [...(process.platform === 'darwin' ? [darwinMenu(commandKeys, execC
   WindowMenu(commandKeys, execCommand, []),
   HelpMenu(commandKeys, execCommand),
 ]
-
-Menu.setApplicationMenu(Menu.buildFromTemplate(menu))
+if(!isE2E || isE2ELocal)
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menu))
 
 
 
