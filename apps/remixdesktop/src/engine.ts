@@ -9,6 +9,8 @@ import { ConfigPlugin } from './plugins/configPlugin';
 import { TemplatesPlugin } from './plugins/templates';
 import { RipgrepPlugin } from './plugins/ripgrepPlugin';
 import { CompilerLoaderPlugin } from './plugins/compilerLoader';
+import { SlitherPlugin } from './plugins/slitherPlugin';
+import { AppUpdaterPlugin } from './plugins/appUpdater';
 
 const engine = new Engine()
 const appManager = new PluginManager()
@@ -19,6 +21,8 @@ const configPlugin = new ConfigPlugin()
 const templatesPlugin = new TemplatesPlugin()
 const ripgrepPlugin = new RipgrepPlugin()
 const compilerLoaderPlugin = new CompilerLoaderPlugin()
+const slitherPlugin = new SlitherPlugin()
+const appUpdaterPlugin = new AppUpdaterPlugin()
 
 engine.register(appManager)
 engine.register(fsPlugin)
@@ -28,6 +32,8 @@ engine.register(configPlugin)
 engine.register(templatesPlugin)
 engine.register(ripgrepPlugin)
 engine.register(compilerLoaderPlugin)
+engine.register(slitherPlugin)
+engine.register(appUpdaterPlugin)
 
 appManager.activatePlugin('electronconfig')
 appManager.activatePlugin('fs')
@@ -52,12 +58,6 @@ ipcMain.on('template:open', async (event) => {
 ipcMain.on('git:startclone', async (event) => {
   isoGitPlugin.startClone(event)
 })
-
-ipcMain.on('terminal:new', async (event) => {
-  console.log('new terminal')
-  xtermPlugin.new(event)
-})
-
 
 ipcMain.handle('getWebContentsID', (event, message) => {
   return event.sender.id

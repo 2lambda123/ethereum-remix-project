@@ -55,6 +55,9 @@ import { electronTemplates } from './app/plugins/electron/templatesPlugin'
 import { xtermPlugin } from './app/plugins/electron/xtermPlugin'
 import { ripgrepPlugin } from './app/plugins/electron/ripgrepPlugin'
 import { compilerLoaderPlugin, compilerLoaderPluginDesktop } from './app/plugins/electron/compilerLoaderPlugin'
+import { appUpdaterPlugin } from './app/plugins/electron/appUpdaterPlugin'
+import { SlitherHandleDesktop } from './app/plugins/electron/slitherPlugin'
+import { SlitherHandle } from './app/files/slither-handle'
 import {SolCoder} from './app/plugins/solcoderAI'
 
 const isElectron = require('is-electron')
@@ -164,7 +167,14 @@ class AppComponent {
 
     this.matomoConfAlreadySet = Registry.getInstance().get('config').api.exists('settings/matomo-analytics')
     this.matomoCurrentSetting = Registry.getInstance().get('config').api.get('settings/matomo-analytics')
-    this.showMatamo = matomoDomains[window.location.hostname] && !this.matomoConfAlreadySet
+
+    let electronTracking = false
+
+    if (window.electronAPI) {
+      electronTracking = await window.electronAPI.canTrackMatomo()
+    }
+
+    this.showMatamo = (matomoDomains[window.location.hostname] || electronTracking) && !this.matomoConfAlreadySet
 
     this.walkthroughService = new WalkthroughService(appManager)
 
@@ -368,10 +378,16 @@ class AppComponent {
       this.engine.register([xterm])
       const ripgrep = new ripgrepPlugin()
       this.engine.register([ripgrep])
+      const appUpdater = new appUpdaterPlugin()
+      this.engine.register([appUpdater])
     }
 
     const compilerloader = isElectron()? new compilerLoaderPluginDesktop(): new compilerLoaderPlugin()
     this.engine.register([compilerloader])
+
+    // slither analyzer plugin (remixd / desktop)
+    const slitherPlugin = isElectron() ? new SlitherHandleDesktop() : new SlitherHandle()
+    this.engine.register([slitherPlugin])
 
     // LAYOUT & SYSTEM VIEWS
     const appPanel = new MainPanel()
@@ -430,7 +446,6 @@ class AppComponent {
       filePanel.hardhatHandle,
       filePanel.foundryHandle,
       filePanel.truffleHandle,
-      filePanel.slitherHandle,
       linkLibraries,
       deployLibraries,
       openZeppelinProxy,
@@ -497,7 +512,7 @@ class AppComponent {
     await this.appManager.activatePlugin(['solidity-script', 'remix-templates'])
 
     if (isElectron()){
-      await this.appManager.activatePlugin(['isogit', 'electronconfig', 'electronTemplates', 'xterm', 'ripgrep'])
+      await this.appManager.activatePlugin(['isogit', 'electronconfig', 'electronTemplates', 'xterm', 'ripgrep', 'appUpdater', 'slither'])
     }
 
     this.appManager.on(

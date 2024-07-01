@@ -1003,16 +1003,17 @@ export function Workspace() {
             disabled={!global.fs.gitConfig.username || !global.fs.gitConfig.email}
             onChange={() => { }}
           />
-          <label
-            htmlFor="initGitRepository"
-            data-id="initGitRepositoryLabel"
-            className="m-0 form-check-label custom-control-label udapp_checkboxAlign"
-            title={intl.formatMessage({ id: 'filePanel.initGitRepoTitle' })}
-          >
-            <FormattedMessage id="filePanel.initGitRepositoryLabel" />
-          </label>
+          {(platform == appPlatformTypes.desktop)? <></>:
+            <label
+              htmlFor="initGitRepository"
+              data-id="initGitRepositoryLabel"
+              className="m-0 form-check-label custom-control-label udapp_checkboxAlign"
+              title={intl.formatMessage({ id: 'filePanel.initGitRepoTitle' })}
+            >
+              <FormattedMessage id="filePanel.initGitRepositoryLabel" />
+            </label>}
         </div>
-        {!global.fs.gitConfig.username || !global.fs.gitConfig.email ? (
+        {(!global.fs.gitConfig.username || !global.fs.gitConfig.email ) && !(platform == appPlatformTypes.desktop) ? (
           <div className="text-warning">
             <FormattedMessage id="filePanel.initGitRepositoryWarning" />
           </div>
