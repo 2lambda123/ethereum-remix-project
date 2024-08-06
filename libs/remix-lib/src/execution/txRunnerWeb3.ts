@@ -3,6 +3,10 @@ import { EventManager } from '../eventManager'
 import type { Transaction as InternalTransaction } from './txRunner'
 import Web3 from 'web3'
 import { toBigInt, toHex } from 'web3-utils'
+import { createPublicClient, createWalletClient, http, custom, WalletClient } from "viem"
+import { sepolia } from 'viem/chains'
+import "viem/window"
+import { V06 } from "userop"
 
 export class TxRunnerWeb3 {
   event
@@ -38,11 +42,11 @@ export class TxRunnerWeb3 {
 
     let currentDateTime = new Date();
     const start = currentDateTime.getTime() / 1000
-    const cb = (err, resp) => {
+    const cb = (err, resp, isUserOp) => {
       if (err) {
         return callback(err, resp)
       }
-      this.event.trigger('transactionBroadcasted', [resp])
+      this.event.trigger('transactionBroadcasted', [resp, isUserOp])
       const listenOnResponse = () => {
         // eslint-disable-next-line no-async-promise-executor
         return new Promise(async (resolve, reject) => {
@@ -64,13 +68,13 @@ export class TxRunnerWeb3 {
         async (value) => {
           try {
             const res = await (this.getWeb3() as any).eth.personal.sendTransaction({ ...tx, value }, { checkRevertBeforeSending: false, ignoreGasPricing: true })
-            cb(null, res.transactionHash)
+            cb(null, res.transactionHash, false)
           } catch (e) {
             console.log(`Send transaction failed: ${e.message} . if you use an injected provider, please check it is properly unlocked. `)
             // in case the receipt is available, we consider that only the execution failed but the transaction went through.
             // So we don't consider this to be an error.
-            if (e.receipt) cb(null, e.receipt.transactionHash)
-            else cb(e, null)
+            if (e.receipt) cb(null, e.receipt.transactionHash, false)
+            else cb(e, null, false)
           }
         },
         () => {
@@ -79,14 +83,19 @@ export class TxRunnerWeb3 {
       )
     } else {
       try {
-        const res = await this.getWeb3().eth.sendTransaction(tx, null, { checkRevertBeforeSending: false, ignoreGasPricing: true })
-        cb(null, res.transactionHash)
+        if (tx.fromSmartAccount) {
+          const userOp = await sendUserOp(tx)
+          cb(null, userOp.userOpHash, true)
+        } else {
+          const res = await this.getWeb3().eth.sendTransaction(tx, null, { checkRevertBeforeSending: false, ignoreGasPricing: true })
+          cb(null, res.transactionHash, false)
+        }
       } catch (e) {
         console.log(`Send transaction failed: ${e.message} . if you use an injected provider, please check it is properly unlocked. `)
         // in case the receipt is available, we consider that only the execution failed but the transaction went through.
         // So we don't consider this to be an error.
-        if (e.receipt) cb(null, e.receipt.transactionHash)
-        else cb(e, null)
+        if (e.receipt) cb(null, e.receipt.transactionHash, false)
+        else cb(e, null, false)
       }
     }
   }
@@ -102,9 +111,8 @@ export class TxRunnerWeb3 {
   }
 
   runInNode (from, fromSmartAccount, to, data, value, gasLimit, useCall, timestamp, confirmCb, gasEstimationForceSend, promptCb, callback) {
-    const tx = { from: from, to: to, data: data, value: value }
+    const tx = { from: from, fromSmartAccount, to: to, data: data, value: value }
     if (!from) return callback('the value of "from" is not defined. Please make sure an account is selected.')
-    if (fromSmartAccount) return callback('from address is from a smart account')
     if (useCall) {
       if (this._api && this._api.isVM()) {
         (this.getWeb3() as any).remix.registerCallId(timestamp)
@@ -184,6 +192,39 @@ export class TxRunnerWeb3 {
         })
     })
   }
+}
+
+const sendUserOp = async (tx) => {
+  console.log('sendUserOp--tx-->', tx)
+  const bundlerEndpoint = "https://public.stackup.sh/api/v1/node/ethereum-sepolia"
+
+  const ethClient: any = createPublicClient({
+    chain: sepolia,
+    transport: http(bundlerEndpoint)
+  })
+  // @ts-ignore
+  const [account] = await window.ethereum!.request({ method: 'eth_requestAccounts' })
+
+  const walletClient: WalletClient = createWalletClient({
+    account,
+    chain: sepolia,
+    transport: custom(window.ethereum)
+  })
+
+  // @ts-ignore
+  const smartAccount = new V06.Account.Instance({
+    ...V06.Account.Common.SimpleAccount.base(ethClient, walletClient),
+  })
+  const sender = await smartAccount.getSender()
+  console.log('sender--->', sender)
+
+  const userOp = await smartAccount.encodeCallData("execute", [tx.to, tx.value, tx.data]).sendUserOperation()
+  console.log('userOp---->', userOp)
+  return userOp
+
+  // const receipt = await userOp.wait()
+  // console.log('receipt---->', receipt)
+
 }
 
 async function tryTillReceiptAvailable (txhash: string, web3: Web3) {
