@@ -57,7 +57,7 @@ export default function (browser: NightwatchBrowser, callback: VoidFunction, url
         }
       })
     })
-    .perform(() => {
+    .perform((done) => {
       if (preloadPlugins) {
         initModules(browser, () => {
           browser
@@ -66,11 +66,21 @@ export default function (browser: NightwatchBrowser, callback: VoidFunction, url
             .waitForElementVisible('[for="autoCompile"]')
             .click('[for="autoCompile"]')
             .verify.elementPresent('[data-id="compilerContainerAutoCompile"]:checked')
-            .perform(() => { callback() })
+            .perform(() => { done() })
         })
       } else {
-        callback()
+        done()
       }
+    }).perform(() => {
+      browser
+        .clickLaunchIcon('udapp')
+        .pinGrid('vm-shanghai', true)
+        .pinGrid('vm-london', true)
+        .pinGrid('vm-berlin', true)
+        .pinGrid('vm-paris', true)
+        .pinGrid('ganache-provider', true)
+        .clickLaunchIcon('solidity')
+        .perform(() => { callback() })
     })
 }
 
